@@ -1,11 +1,16 @@
 package com.capsule.music
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
@@ -30,6 +35,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.capsule.music.data.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -39,6 +45,21 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
+            // Запрос разрешения на уведомления для Android 13+
+            val context = LocalContext.current
+            val permissionLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.RequestPermission(),
+                onResult = {}
+            )
+
+            LaunchedEffect(Unit) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                }
+            }
+
             var showCapsuleStories by remember { mutableStateOf(false) }
 
             if (showCapsuleStories) {
@@ -108,7 +129,7 @@ fun MainDashboardScreen(onOpenCapsule: () -> Unit) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // БОЛЬШАЯ КАРТОЧКА SPOTIFY WRAPPED КЛИКАБЕЛЬНАЯ
+            // БОЛЬШАЯ КАРТОЧКА SPOTIFY WRAPPED
             Card(
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.Transparent),
@@ -147,7 +168,7 @@ fun MainDashboardScreen(onOpenCapsule: () -> Unit) {
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Кнопки управления (доступ + тестовые демо-данные)
+            // Кнопки управления
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -200,26 +221,22 @@ fun MainDashboardScreen(onOpenCapsule: () -> Unit) {
 }
 
 // -------------------------------------------------------------
-// ЭКРАН ИТОГОВ: SPOTIFY WRAPPED STORIES (АНИМИРОВАННЫЙ)
+// ЭКРАН ИТОГОВ: SPOTIFY WRAPPED STORIES
 // -------------------------------------------------------------
 @Composable
 fun CapsuleStoriesScreen(onClose: () -> Unit) {
     BackHandler { onClose() }
 
     val dao = CapsuleApp.database.playbackDao()
-    val scope = rememberCoroutineScope()
-
     var currentSlide by remember { mutableIntStateOf(0) }
     val totalSlides = 4
 
-    // Данные для капсулы
     var topTracks by remember { mutableStateOf<List<TrackStat>>(emptyList()) }
     var topArtists by remember { mutableStateOf<List<ArtistStat>>(emptyList()) }
     var dailyStats by remember { mutableStateOf<List<DayStat>>(emptyList()) }
     var totalMonthMinutes by remember { mutableLongStateOf(0L) }
     var artistStreakMap by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
 
-    // Загрузка данных за месяц
     LaunchedEffect(Unit) {
         val monthAgo = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000)
         val twoMonthsAgo = System.currentTimeMillis() - (60L * 24 * 60 * 60 * 1000)
@@ -234,7 +251,6 @@ fun CapsuleStoriesScreen(onClose: () -> Unit) {
         dailyStats = days
         totalMonthMinutes = totalMs / 60000
 
-        // Проверяем стрики артистов
         val streaks = mutableMapOf<String, Int>()
         for (a in artists) {
             val wasInPrev = dao.isArtistInPrevMonthTop(a.artistName, twoMonthsAgo, monthAgo)
@@ -243,7 +259,6 @@ fun CapsuleStoriesScreen(onClose: () -> Unit) {
         artistStreakMap = streaks
     }
 
-    // Анимация индикатора прогресса для текущей сторис
     val progress = remember { Animatable(0f) }
 
     LaunchedEffect(currentSlide) {
@@ -259,12 +274,11 @@ fun CapsuleStoriesScreen(onClose: () -> Unit) {
         }
     }
 
-    // Фоновые градиенты для каждого слайда
     val bgGradients = listOf(
-        listOf(Color(0xFF4A0E4E), Color(0xFF0F0014)), // Время
-        listOf(Color(0xFF0B3C5D), Color(0xFF021019)), // Топ треков
-        listOf(Color(0xFFB82601), Color(0xFF1E0000)), // Топ артистов
-        listOf(Color(0xFF0D5C3A), Color(0xFF021B10))  // Финал
+        listOf(Color(0xFF4A0E4E), Color(0xFF0F0014)),
+        listOf(Color(0xFF0B3C5D), Color(0xFF021019)),
+        listOf(Color(0xFFB82601), Color(0xFF1E0000)),
+        listOf(Color(0xFF0D5C3A), Color(0xFF021B10))
     )
 
     Box(
@@ -282,7 +296,7 @@ fun CapsuleStoriesScreen(onClose: () -> Unit) {
         Column(modifier = Modifier.fillMaxSize()) {
             Spacer(modifier = Modifier.height(28.dp))
 
-            // ПОЛОСКИ ПРОГРЕССА СВЕРХУ (КАК В ИНСТЕ/СПОТИКЕ)
+            // Полоски сторис
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -312,7 +326,6 @@ fun CapsuleStoriesScreen(onClose: () -> Unit) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Кнопка закрытия
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -331,7 +344,6 @@ fun CapsuleStoriesScreen(onClose: () -> Unit) {
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // СОДЕРЖИМОЕ СЛАЙДОВ
             when (currentSlide) {
                 0 -> SlideTotalTime(totalMonthMinutes, dailyStats)
                 1 -> SlideTopTracks(topTracks)
@@ -343,7 +355,7 @@ fun CapsuleStoriesScreen(onClose: () -> Unit) {
 }
 
 // -------------------------------------------------------------
-// СЛАЙД 1: ВРЕМЯ ЗА МЕСЯЦ И ГРАФИК ПО ДНЯМ
+// СЛАЙДЫ
 // -------------------------------------------------------------
 @Composable
 fun SlideTotalTime(totalMinutes: Long, dailyStats: List<DayStat>) {
@@ -362,7 +374,6 @@ fun SlideTotalTime(totalMinutes: Long, dailyStats: List<DayStat>) {
         Text("Активность по дням:", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
         Spacer(modifier = Modifier.height(16.dp))
 
-        // График активности по дням
         if (dailyStats.isNotEmpty()) {
             val maxMs = (dailyStats.maxOfOrNull { it.totalMs } ?: 1L).coerceAtLeast(1L)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -399,9 +410,6 @@ fun SlideTotalTime(totalMinutes: Long, dailyStats: List<DayStat>) {
     }
 }
 
-// -------------------------------------------------------------
-// СЛАЙД 2: ТОП 5 ТРЕКОВ
-// -------------------------------------------------------------
 @Composable
 fun SlideTopTracks(tracks: List<TrackStat>) {
     Column(modifier = Modifier.fillMaxSize()) {
@@ -442,9 +450,6 @@ fun SlideTopTracks(tracks: List<TrackStat>) {
     }
 }
 
-// -------------------------------------------------------------
-// СЛАЙД 3: ТОП 5 АРТИСТОВ И ИХ СТРИКИ
-// -------------------------------------------------------------
 @Composable
 fun SlideTopArtists(artists: List<ArtistStat>, streaks: Map<String, Int>) {
     Column(modifier = Modifier.fillMaxSize()) {
@@ -481,7 +486,6 @@ fun SlideTopArtists(artists: List<ArtistStat>, streaks: Map<String, Int>) {
                     Spacer(modifier = Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(artist.artistName, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
-                        // Плашка стрика артиста!
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = if (streak > 1) "🔥 $streak мес. в топе подряд!" else "✨ Новый в топе",
@@ -499,9 +503,6 @@ fun SlideTopArtists(artists: List<ArtistStat>, streaks: Map<String, Int>) {
     }
 }
 
-// -------------------------------------------------------------
-// СЛАЙД 4: ФИНАЛЬНАЯ КАРТОЧКА-ИТОГ
-// -------------------------------------------------------------
 @Composable
 fun SlideSummaryCard(minutes: Long, topArtist: String, topTrack: String) {
     Column(
@@ -538,9 +539,6 @@ fun SlideSummaryCard(minutes: Long, topArtist: String, topTrack: String) {
     }
 }
 
-// -------------------------------------------------------------
-// ВСПОМОГАТЕЛЬНЫЕ КОМПОНЕНТЫ И ДЕМО-ДАННЫЕ
-// -------------------------------------------------------------
 @Composable
 fun TrackRow(event: PlaybackEvent) {
     val timeFormat = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
@@ -564,7 +562,6 @@ fun TrackRow(event: PlaybackEvent) {
     }
 }
 
-// Заполнение тестовыми данными, чтобы сразу оценить всю Капсулу
 suspend fun insertDemoData(dao: PlaybackDao) {
     val now = System.currentTimeMillis()
     val dayMs = 24L * 60 * 60 * 1000
