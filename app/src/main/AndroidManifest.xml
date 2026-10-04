@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Разрешение на показ уведомления в шторке -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:name=".CapsuleApp"
         android:allowBackup="true"
@@ -19,7 +22,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Фоновая служба, перехватывающая системные медиа-события -->
+        <!-- Фоновая служба трекера -->
         <service
             android:name=".tracker.MusicNotificationListener"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
